@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sudoku Clássico</title>
+<style>
+  :root {
+    --bg: #F4F1EA;
+    --grid-bg: #FFFFFF;
+    --thick-line: #2B2B2B;
+    --thin-line: #C9C4B8;
+    --given-color: #1F2937;
+    --user-color: #2563EB;
+    --error-color: #DC2626;
+    --same-num-color: #FDE68A;
+    --peer-color: #EFF4FF;
+    --mode-on-color: #059669;
+    --mode-on-hover: #047857;
+    --btn-color: #2563EB;
+    --btn-hover: #1D4ED8;
+    --btn-text: #FFFFFF;
+    --label-color: #374151;
+    --title-color: #1F2937;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    margin: 0;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+    color: var(--title-color);
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 16px calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app {
+    width: 100%;
+    max-width: 820px;
+  }
+
+  h1 {
+    font-size: 1.7rem;
+    margin: 0 0 14px;
+    font-weight: 700;
+  }
+
+  .layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .board-col {
+    flex: 0 0 auto;
+  }
+
+  .board {
+    width: min(520px, 92vw);
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    background: var(--grid-bg);
+    border: 3px solid var(--thick-line);
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  .cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    font-size: clamp(16px, 3.6vw, 22px);
+    border-right: 1px solid var(--thin-line);
+    border-bottom: 1px solid var(--thin-line);
+    cursor: pointer;
+    background: var(--grid-bg);
+  }
+  .cell.col-3n { border-right: 2px solid var(--thick-line); }
+  .cell.row-3n { border-bottom: 2px solid var(--thick-line); }
+  .cell.col-0 { border-left: none; }
+  .cell.row-0 { border-top: none; }
+
+  .cell .value.given { color: var(--given-color); font-weight: 600; }
+  .cell .value.user { color: var(--user-color); font-weight: 600; }
+  .cell .value.error { color: var(--error-color); font-weight: 600; }
+
+  .notes {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    pointer-events: none;
+  }
+  .notes span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(7px, 1.5vw, 10px);
+    color: #6B7280;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    flex: 1 1 210px;
+    max-width: 240px;
+    min-width: 200px;
+  }
+
+  .sidebar label.section {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--label-color);
+    margin-bottom: 4px;
+  }
+
+  select#difficulty {
+    width: 100%;
+    font-size: 0.95rem;
+    padding: 6px 8px;
+    border: 1px solid var(--thin-line);
+    border-radius: 4px;
+    background: white;
+    margin-bottom: 14px;
+    color: var(--title-color);
+  }
+
+  .info-box {
+    margin-bottom: 14px;
+  }
+  .info-box div {
+    font-size: 0.9rem;
+    color: var(--label-color);
+    padding: 1px 0;
+  }
+
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .numpad button {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 10px 0;
+    border: 1px solid var(--thin-line);
+    background: white;
+    color: var(--title-color);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .numpad button:hover { background: #F3F4F6; }
+  .numpad button.armed {
+    border: 2px solid var(--user-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  }
+
+  #erase-btn {
+    width: 100%;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 8px 0;
+    border: 1px solid var(--thin-line);
+    background: white;
+    color: var(--title-color);
+    border-radius: 3px;
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+  #erase-btn:hover { background: #F3F4F6; }
+  #erase-btn.armed {
+    border: 2px solid var(--user-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .controls button {
+    font-size: 0.95rem;
+    font-weight: 700;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 4px;
+    background: var(--btn-color);
+    color: var(--btn-text);
+    cursor: pointer;
+    text-align: center;
+  }
+  .controls button:hover { background: var(--btn-hover); }
+  .controls button.on { background: var(--mode-on-color); }
+  .controls button.on:hover { background: var(--mode-on-hover); }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 41, 55, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: white;
+    border-radius: 8px;
+    padding: 22px 24px;
+    max-width: 340px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .modal-box h2 {
+    margin: 0 0 10px;
+    font-size: 1.1rem;
+    color: var(--title-color);
+  }
+  .modal-box p {
+    margin: 0 0 18px;
+    font-size: 0.92rem;
+    color: var(--label-color);
+    line-height: 1.5;
+    white-space: pre-line;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .modal-actions button {
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .modal-actions button.primary { background: var(--btn-color); color: white; }
+  .modal-actions button.primary:hover { background: var(--btn-hover); }
+  .modal-actions button.secondary { background: #E5E7EB; color: var(--title-color); }
+  .modal-actions button.secondary:hover { background: #D1D5DB; }
+
+  @media (max-width: 600px) {
+    .layout { flex-direction: column; align-items: center; }
+    .sidebar { max-width: min(520px, 92vw); width: 100%; }
+    .numpad { grid-template-columns: repeat(9, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Sudoku Clássico</h1>
+  <div class="layout">
+    <div class="board-col">
+      <div class="board" id="board" aria-label="Tabuleiro de Sudoku"></div>
+    </div>
+    <div class="sidebar">
+      <label class="section" for="difficulty">Dificuldade</label>
+      <select id="difficulty">
+        <option>Fácil</option>
+        <option selected>Médio</option>
+        <option>Difícil</option>
+        <option>Especialista</option>
+      </select>
+
+      <div class="info-box">
+        <div id="timer">⏱ 00:00</div>
+        <div id="mistakes">Erros: 0</div>
+        <div id="hints">Dicas: 0</div>
+      </div>
+
+      <label class="section">Números</label>
+      <div class="numpad" id="numpad"></div>
+      <button id="erase-btn">⌫ Apagar</button>
+
+      <div class="controls">
+        <button id="btn-new">Novo Jogo (N)</button>
+        <button id="btn-notes">Anotações: OFF (A)</button>
+        <button id="btn-hint">Dica: OFF (D)</button>
+        <button id="btn-restart">Reiniciar (R)</button>
+        <button id="btn-solve">Solução (S)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <h2 id="modal-title"></h2>
+    <p id="modal-message"></p>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============ Lógica do Sudoku (gerador / solver) ============
+  function findEmpty(board) {
+    for (let r = 0; r < 9; r++)
+      for (let c = 0; c < 9; c++)
+        if (board[r][c] === 0) return [r, c];
+    return null;
+  }
+
+  function isValid(board, num, row, col) {
+    for (let c = 0; c < 9; c++) if (board[row][c] === num && c !== col) return false;
+    for (let r = 0; r < 9; r++) if (board[r][col] === num && r !== row) return false;
+    const br = Math.floor(row / 3) * 3, bc = Math.floor(col / 3) * 3;
+    for (let r = br; r < br + 3; r++)
+      for (let c = bc; c < bc + 3; c++)
+        if (board[r][c] === num && !(r === row && c === col)) return false;
+    return true;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function solveBoard(board, randomize) {
+    const empty = findEmpty(board);
+    if (!empty) return true;
+    const [row, col] = empty;
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    if (randomize) nums = shuffle(nums);
+    for (const num of nums) {
+      if (isValid(board, num, row, col)) {
+        board[row][col] = num;
+        if (solveBoard(board, randomize)) return true;
+        board[row][col] = 0;
+      }
+    }
+    return false;
+  }
+
+  function countSolutions(board, limit) {
+    const empty = findEmpty(board);
+    if (!empty) return 1;
+    const [row, col] = empty;
+    let count = 0;
+    for (let num = 1; num <= 9; num++) {
+      if (isValid(board, num, row, col)) {
+        board[row][col] = num;
+        count += countSolutions(board, limit);
+        board[row][col] = 0;
+        if (count >= limit) break;
+      }
+    }
+    return count;
+  }
+
+  function generateFullBoard() {
+    const board = Array.from({ length: 9 }, () => Array(9).fill(0));
+    solveBoard(board, true);
+    return board;
+  }
+
+  const DIFFICULTY_CLUES = { "Fácil": 42, "Médio": 34, "Difícil": 29, "Especialista": 27 };
+
+  function generatePuzzle(difficulty) {
+    const full = generateFullBoard();
+    const solution = full.map(row => row.slice());
+    const puzzle = full.map(row => row.slice());
+
+    const target = DIFFICULTY_CLUES[difficulty] ?? 34;
+    const cells = [];
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) cells.push([r, c]);
+    shuffle(cells);
+
+    let clues = 81;
+    for (const [r, c] of cells) {
+      if (clues <= target) break;
+      const backup = puzzle[r][c];
+      puzzle[r][c] = 0;
+      const copy = puzzle.map(row => row.slice());
+      if (countSolutions(copy, 2) !== 1) {
+        puzzle[r][c] = backup;
+      } else {
+        clues -= 1;
+      }
+    }
+    return { puzzle, solution };
+  }
+
+  function isValidCell(board, row, col) {
+    const val = board[row][col];
+    if (val === 0) return true;
+    board[row][col] = 0;
+    const ok = isValid(board, val, row, col);
+    board[row][col] = val;
+    return ok;
+  }
+
+  function boardIsCompleteAndValid(board) {
+    for (let r = 0; r < 9; r++)
+      for (let c = 0; c < 9; c++) {
+        const val = board[r][c];
+        if (val === 0) return false;
+        board[r][c] = 0;
+        const ok = isValid(board, val, r, c);
+        board[r][c] = val;
+        if (!ok) return false;
+      }
+    return true;
+  }
+
+  // ============ Estado do jogo ============
+  const MODE_WRITE = "write", MODE_NOTES = "notes", MODE_HINT = "hint";
+
+  const state = {
+    difficulty: "Médio",
+    puzzle: null,
+    solution: null,
+    givenMask: null,
+    userBoard: null,
+    notes: new Map(),        // "r,c" -> Set<number>
+    mode: MODE_WRITE,
+    pendingNumber: null,
+    hoverCell: null,         // [r, c] | null
+    startTime: null,
+    timerRunning: false,
+    hintsUsed: 0,
+    mistakes: 0,
+  };
+
+  // ============ DOM ============
+  const boardEl = document.getElementById("board");
+  const timerEl = document.getElementById("timer");
+  const mistakesEl = document.getElementById("mistakes");
+  const hintsEl = document.getElementById("hints");
+  const diffSelect = document.getElementById("difficulty");
+  const numpadEl = document.getElementById("numpad");
+  const eraseBtn = document.getElementById("erase-btn");
+  const notesBtn = document.getElementById("btn-notes");
+  const hintBtn = document.getElementById("btn-hint");
+
+  let cellEls = [];   // cellEls[r][c] = { root, valueEl, notesEl }
+  let noteSpans = []; // noteSpans[r][c] = [span1..span9] (índice 0 => número 1)
+
+  function buildBoardDom() {
+    boardEl.innerHTML = "";
+    cellEls = [];
+    noteSpans = [];
+    for (let r = 0; r < 9; r++) {
+      cellEls.push([]);
+      noteSpans.push([]);
+      for (let c = 0; c < 9; c++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        if (c % 3 === 2) cell.classList.add("col-3n");
+        if (r % 3 === 2) cell.classList.add("row-3n");
+        if (c === 0) cell.classList.add("col-0");
+        if (r === 0) cell.classList.add("row-0");
+        cell.dataset.r = r;
+        cell.dataset.c = c;
+
+        const valueEl = document.createElement("span");
+        valueEl.className = "value";
+        cell.appendChild(valueEl);
+
+        const notesEl = document.createElement("div");
+        notesEl.className = "notes";
+        const spans = [];
+        for (let n = 1; n <= 9; n++) {
+          const span = document.createElement("span");
+          notesEl.appendChild(span);
+          spans.push(span);
+        }
+        cell.appendChild(notesEl);
+
+        boardEl.appendChild(cell);
+        cellEls[r].push({ root: cell, valueEl, notesEl });
+        noteSpans[r].push(spans);
+      }
+    }
+  }
+
+  function buildNumpad() {
+    numpadEl.innerHTML = "";
+    for (let n = 1; n <= 9; n++) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = String(n);
+      b.addEventListener("click", () => selectNumber(n));
+      numpadEl.appendChild(b);
+    }
+  }
+
+  // ============ Timer ============
+  function tickTimer() {
+    if (state.timerRunning) {
+      const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+      const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+      const s = String(elapsed % 60).padStart(2, "0");
+      timerEl.textContent = `⏱ ${m}:${s}`;
+    }
+  }
+  setInterval(tickTimer, 1000);
+
+  // ============ Novo jogo ============
+  function newGame(difficulty) {
+    state.difficulty = difficulty;
+    diffSelect.value = difficulty;
+    state.timerRunning = false;
+
+    boardEl.innerHTML = "";
+    const loading = document.createElement("div");
+    loading.style.gridColumn = "1 / -1";
+    loading.style.gridRow = "1 / -1";
+    loading.style.display = "flex";
+    loading.style.alignItems = "center";
+    loading.style.justifyContent = "center";
+    loading.style.color = "#6B7280";
+    loading.style.fontSize = "1.1rem";
+    loading.textContent = "Gerando novo jogo...";
+    boardEl.appendChild(loading);
+
+    // pequeno atraso para o "Gerando..." pintar antes do cálculo síncrono
+    setTimeout(() => {
+      const { puzzle, solution } = generatePuzzle(difficulty);
+      state.puzzle = puzzle;
+      state.solution = solution;
+      state.givenMask = puzzle.map(row => row.map(v => v !== 0));
+      state.userBoard = puzzle.map(row => row.slice());
+      state.notes = new Map();
+      state.pendingNumber = null;
+      state.mode = MODE_WRITE;
+      state.hoverCell = null;
+      state.hintsUsed = 0;
+      state.mistakes = 0;
+      state.startTime = Date.now();
+      state.timerRunning = true;
+      hintsEl.textContent = "Dicas: 0";
+      mistakesEl.textContent = "Erros: 0";
+      timerEl.textContent = "⏱ 00:00";
+
+      buildBoardDom();
+      refreshModeButtons();
+      renderBoard();
+    }, 10);
+  }
+
+  // ============ Renderização ============
+  function noteKey(r, c) { return r + "," + c; }
+
+  function renderBoard() {
+    const highlightVal = (state.mode !== MODE_HINT && state.pendingNumber) ? state.pendingNumber : null;
+    const [hr, hc] = state.hoverCell || [null, null];
+
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const { root, valueEl, notesEl } = cellEls[r][c];
+        const val = state.userBoard[r][c];
+
+        let bg = "var(--grid-bg)";
+        if (state.hoverCell && (r === hr || c === hc || (Math.floor(r / 3) === Math.floor(hr / 3) && Math.floor(c / 3) === Math.floor(hc / 3)))) {
+          bg = "var(--peer-color)";
+        }
+        if (highlightVal) {
+          const notesHere = state.notes.get(noteKey(r, c));
+          if (val === highlightVal) bg = "var(--same-num-color)";
+          else if (val === 0 && notesHere && notesHere.has(highlightVal)) bg = "var(--same-num-color)";
+        }
+        root.style.background = bg;
+
+        if (val !== 0) {
+          valueEl.textContent = String(val);
+          valueEl.style.display = "";
+          notesEl.style.display = "none";
+          const isGiven = state.givenMask[r][c];
+          let cls = "value ";
+          if (isGiven) cls += "given";
+          else if (!isValidCell(state.userBoard, r, c)) cls += "error";
+          else cls += "user";
+          valueEl.className = cls;
+        } else {
+          valueEl.textContent = "";
+          valueEl.style.display = "none";
+          const cand = state.notes.get(noteKey(r, c));
+          if (cand && cand.size) {
+            notesEl.style.display = "grid";
+            for (let n = 1; n <= 9; n++) {
+              noteSpans[r][c][n - 1].textContent = cand.has(n) ? String(n) : "";
+            }
+          } else {
+            notesEl.style.display = "none";
+          }
+        }
+      }
+    }
+
+    const padButtons = numpadEl.querySelectorAll("button");
+    padButtons.forEach((b, i) => {
+      const n = i + 1;
+      b.classList.toggle("armed", state.mode !== MODE_HINT && state.pendingNumber === n);
+    });
+    eraseBtn.classList.toggle("armed", state.mode !== MODE_HINT && state.pendingNumber === 0);
+  }
+
+  // ============ Ações por célula ============
+  function writeValueAt(r, c, n) {
+    const prev = state.userBoard[r][c];
+    state.userBoard[r][c] = n;
+    if (n !== 0) {
+      state.notes.delete(noteKey(r, c));
+      clearPeerNotes(r, c, n);
+      if (n !== state.solution[r][c] && prev !== n) {
+        state.mistakes += 1;
+        mistakesEl.textContent = "Erros: " + state.mistakes;
+      }
+    }
+    checkWinSilent();
+  }
+
+  function toggleNoteAt(r, c, n) {
+    const key = noteKey(r, c);
+    let cand = state.notes.get(key);
+    if (!cand) { cand = new Set(); state.notes.set(key, cand); }
+    if (cand.has(n)) cand.delete(n); else cand.add(n);
+    if (cand.size === 0) state.notes.delete(key);
+  }
+
+  function applyHintAt(r, c) {
+    if (state.userBoard[r][c] === state.solution[r][c]) return;
+    state.userBoard[r][c] = state.solution[r][c];
+    state.notes.delete(noteKey(r, c));
+    clearPeerNotes(r, c, state.solution[r][c]);
+    state.hintsUsed += 1;
+    hintsEl.textContent = "Dicas: " + state.hintsUsed;
+    checkWinSilent();
+  }
+
+  function clearPeerNotes(r, c, n) {
+    const boxR = Math.floor(r / 3) * 3, boxC = Math.floor(c / 3) * 3;
+    const peers = new Set();
+    for (let i = 0; i < 9; i++) {
+      peers.add(noteKey(r, i));
+      peers.add(noteKey(i, c));
+    }
+    for (let pr = boxR; pr < boxR + 3; pr++)
+      for (let pc = boxC; pc < boxC + 3; pc++)
+        peers.add(noteKey(pr, pc));
+    peers.delete(noteKey(r, c));
+
+    for (const key of peers) {
+      const cand = state.notes.get(key);
+      if (cand && cand.has(n)) {
+        cand.delete(n);
+        if (cand.size === 0) state.notes.delete(key);
+      }
+    }
+  }
+
+  // ============ Interação ============
+  function handleCellClick(r, c) {
+    if (state.givenMask[r][c]) return; // célula de pista: protegida em qualquer modo
+
+    if (state.mode === MODE_HINT) {
+      applyHintAt(r, c);
+    } else if (state.mode === MODE_NOTES) {
+      if (state.pendingNumber) toggleNoteAt(r, c, state.pendingNumber);
+    } else { // MODE_WRITE
+      const n = state.pendingNumber;
+      if (n !== null && (n === 0 || state.userBoard[r][c] === 0)) {
+        writeValueAt(r, c, n);
+      }
+    }
+    renderBoard();
+  }
+
+  boardEl.addEventListener("click", (e) => {
+    const cell = e.target.closest(".cell");
+    if (!cell) return;
+    handleCellClick(Number(cell.dataset.r), Number(cell.dataset.c));
+  });
+  boardEl.addEventListener("mousemove", (e) => {
+    const cell = e.target.closest(".cell");
+    if (!cell) return;
+    const r = Number(cell.dataset.r), c = Number(cell.dataset.c);
+    if (!state.hoverCell || state.hoverCell[0] !== r || state.hoverCell[1] !== c) {
+      state.hoverCell = [r, c];
+      renderBoard();
+    }
+  });
+  boardEl.addEventListener("mouseleave", () => {
+    if (state.hoverCell) {
+      state.hoverCell = null;
+      renderBoard();
+    }
+  });
+
+  function selectNumber(n) {
+    state.pendingNumber = n;
+    renderBoard();
+  }
+
+  function checkWinSilent() {
+    const filled = state.userBoard.every(row => row.every(v => v !== 0));
+    if (filled && boardIsCompleteAndValid(state.userBoard.map(row => row.slice()))) {
+      onWin();
+    }
+  }
+
+  function onWin() {
+    state.timerRunning = false;
+    const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+    const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const s = String(elapsed % 60).padStart(2, "0");
+    showModal({
+      title: "Parabéns! 🎉",
+      message: `Você completou o Sudoku em ${m}:${s}\nErros: ${state.mistakes} | Dicas usadas: ${state.hintsUsed}`,
+      buttons: [{ label: "OK", primary: true }],
+    });
+  }
+
+  // ============ Modos ============
+  function refreshModeButtons() {
+    const notesOn = state.mode === MODE_NOTES;
+    const hintOn = state.mode === MODE_HINT;
+    notesBtn.textContent = `Anotações: ${notesOn ? "ON" : "OFF"} (A)`;
+    notesBtn.classList.toggle("on", notesOn);
+    hintBtn.textContent = `Dica: ${hintOn ? "ON" : "OFF"} (D)`;
+    hintBtn.classList.toggle("on", hintOn);
+  }
+
+  function toggleNotesMode() {
+    state.mode = state.mode === MODE_NOTES ? MODE_WRITE : MODE_NOTES;
+    refreshModeButtons();
+    renderBoard();
+  }
+
+  function toggleHintMode() {
+    state.mode = state.mode === MODE_HINT ? MODE_WRITE : MODE_HINT;
+    refreshModeButtons();
+    renderBoard();
+  }
+
+  // ============ Reiniciar / Resolver ============
+  function restart() {
+    showModal({
+      title: "Reiniciar",
+      message: "Isso vai apagar tudo e recomeçar o mesmo jogo. Deseja continuar?",
+      buttons: [
+        { label: "Cancelar", primary: false },
+        {
+          label: "Reiniciar", primary: true, onClick: () => {
+            state.userBoard = state.puzzle.map(row => row.slice());
+            state.notes = new Map();
+            state.pendingNumber = null;
+            renderBoard();
+          }
+        },
+      ],
+    });
+  }
+
+  function solveNow() {
+    showModal({
+      title: "Resolver",
+      message: "Isso vai preencher a solução completa. Deseja continuar?",
+      buttons: [
+        { label: "Cancelar", primary: false },
+        {
+          label: "Resolver", primary: true, onClick: () => {
+            state.userBoard = state.solution.map(row => row.slice());
+            state.notes = new Map();
+            state.pendingNumber = null;
+            state.mode = MODE_WRITE;
+            state.timerRunning = false;
+            refreshModeButtons();
+            renderBoard();
+          }
+        },
+      ],
+    });
+  }
+
+  // ============ Modal genérico ============
+  const modalOverlay = document.getElementById("modal-overlay");
+  const modalTitle = document.getElementById("modal-title");
+  const modalMessage = document.getElementById("modal-message");
+  const modalActions = document.getElementById("modal-actions");
+
+  function showModal({ title, message, buttons }) {
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    modalActions.innerHTML = "";
+    buttons.forEach((b) => {
+      const btn = document.createElement("button");
+      btn.textContent = b.label;
+      btn.className = b.primary ? "primary" : "secondary";
+      btn.addEventListener("click", () => {
+        closeModal();
+        if (b.onClick) b.onClick();
+      });
+      modalActions.appendChild(btn);
+    });
+    modalOverlay.classList.add("open");
+  }
+  function closeModal() {
+    modalOverlay.classList.remove("open");
+  }
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+
+  // ============ Atalhos de teclado ============
+  const SHORTCUTS = {
+    n: () => newGame(state.difficulty),
+    a: toggleNotesMode,
+    d: toggleHintMode,
+    r: restart,
+    s: solveNow,
+  };
+
+  document.addEventListener("keydown", (e) => {
+    const active = document.activeElement;
+    if (active && (active.tagName === "SELECT" || active.tagName === "INPUT")) return;
+    if (modalOverlay.classList.contains("open")) return;
+
+    const key = e.key.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(SHORTCUTS, key)) {
+      SHORTCUTS[key]();
+      return;
+    }
+    if (e.key >= "1" && e.key <= "9") {
+      selectNumber(Number(e.key));
+      return;
+    }
+    if (e.key === "Backspace" || e.key === "Delete") {
+      selectNumber(0);
+    }
+  });
+
+  // ============ Ligações da UI ============
+  diffSelect.addEventListener("change", () => newGame(diffSelect.value));
+  eraseBtn.addEventListener("click", () => selectNumber(0));
+  document.getElementById("btn-new").addEventListener("click", () => newGame(state.difficulty));
+  notesBtn.addEventListener("click", toggleNotesMode);
+  hintBtn.addEventListener("click", toggleHintMode);
+  document.getElementById("btn-restart").addEventListener("click", restart);
+  document.getElementById("btn-solve").addEventListener("click", solveNow);
+
+  // ============ Inicialização ============
+  buildNumpad();
+  newGame(state.difficulty);
+})();
+</script>
+</body>
+</html>
