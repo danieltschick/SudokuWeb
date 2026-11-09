@@ -290,6 +290,7 @@
         <button id="btn-new">Novo Jogo (N)</button>
         <button id="btn-notes">Anotações: OFF (A)</button>
         <button id="btn-hint">Dica: OFF (D)</button>
+        <button id="btn-undo">Voltar (V)</button>
         <button id="btn-restart">Reiniciar (R)</button>
         <button id="btn-solve">Solução (S)</button>
       </div>
@@ -439,6 +440,7 @@
     timerRunning: false,
     hintsUsed: 0,
     mistakes: 0,
+    history: [],             // snapshots {board, notes} para o botão Voltar
   };
 
   // ============ DOM ============
@@ -541,6 +543,7 @@
       state.givenMask = puzzle.map(row => row.map(v => v !== 0));
       state.userBoard = puzzle.map(row => row.slice());
       state.notes = new Map();
+      state.history = [];
       state.pendingNumber = null;
       state.mode = MODE_WRITE;
       state.hoverCell = null;
@@ -615,9 +618,28 @@
     eraseBtn.classList.toggle("armed", state.mode !== MODE_HINT && state.pendingNumber === 0);
   }
 
+  // ============ Histórico (Voltar) ============
+  function pushHistory() {
+    const notesCopy = new Map();
+    state.notes.forEach((set, key) => notesCopy.set(key, new Set(set)));
+    state.history.push({ board: state.userBoard.map(row => row.slice()), notes: notesCopy });
+  }
+
+  // Volta ao estado anterior à última jogada (valores e anotações).
+  // Os contadores de erros e dicas não são revertidos.
+  function undo() {
+    if (!state.history.length) return;
+    const snap = state.history.pop();
+    state.userBoard = snap.board;
+    state.notes = snap.notes;
+    renderBoard();
+  }
+
   // ============ Ações por célula ============
   function writeValueAt(r, c, n) {
     const prev = state.userBoard[r][c];
+    if (prev === n) return; // nada muda (ex.: apagar célula já vazia)
+    pushHistory();
     state.userBoard[r][c] = n;
     if (n !== 0) {
       state.notes.delete(noteKey(r, c));
@@ -631,6 +653,7 @@
   }
 
   function toggleNoteAt(r, c, n) {
+    pushHistory();
     const key = noteKey(r, c);
     let cand = state.notes.get(key);
     if (!cand) { cand = new Set(); state.notes.set(key, cand); }
@@ -640,6 +663,7 @@
 
   function applyHintAt(r, c) {
     if (state.userBoard[r][c] === state.solution[r][c]) return;
+    pushHistory();
     state.userBoard[r][c] = state.solution[r][c];
     state.notes.delete(noteKey(r, c));
     clearPeerNotes(r, c, state.solution[r][c]);
@@ -721,6 +745,7 @@
 
   function onWin() {
     state.timerRunning = false;
+    state.history = [];
     const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
     const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
     const s = String(elapsed % 60).padStart(2, "0");
@@ -764,6 +789,7 @@
           label: "Reiniciar", primary: true, onClick: () => {
             state.userBoard = state.puzzle.map(row => row.slice());
             state.notes = new Map();
+            state.history = [];
             state.pendingNumber = null;
             renderBoard();
           }
@@ -782,6 +808,7 @@
           label: "Resolver", primary: true, onClick: () => {
             state.userBoard = state.solution.map(row => row.slice());
             state.notes = new Map();
+            state.history = [];
             state.pendingNumber = null;
             state.mode = MODE_WRITE;
             state.timerRunning = false;
@@ -829,6 +856,7 @@
     d: toggleHintMode,
     r: restart,
     s: solveNow,
+    v: undo,
   };
 
   document.addEventListener("keydown", (e) => {
@@ -837,6 +865,12 @@
     if (modalOverlay.classList.contains("open")) return;
 
     const key = e.key.toLowerCase();
+    if (key === "z" && (e.ctrlKey || e.metaKey)) { // Ctrl+Z / Cmd+Z
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // não captura outros atalhos do navegador
     if (Object.prototype.hasOwnProperty.call(SHORTCUTS, key)) {
       SHORTCUTS[key]();
       return;
@@ -856,6 +890,7 @@
   document.getElementById("btn-new").addEventListener("click", () => newGame(state.difficulty));
   notesBtn.addEventListener("click", toggleNotesMode);
   hintBtn.addEventListener("click", toggleHintMode);
+  document.getElementById("btn-undo").addEventListener("click", undo);
   document.getElementById("btn-restart").addEventListener("click", restart);
   document.getElementById("btn-solve").addEventListener("click", solveNow);
 
